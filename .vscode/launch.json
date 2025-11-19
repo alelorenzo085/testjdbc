@@ -2,6 +2,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "Main2",
+            "request": "launch",
+            "mainClass": "edu.acceso.testjdbc.Main2",
+            "projectName": "testjdbc"
+        },
+        {
+            "type": "java",
             "name": "Main",
             "request": "launch",
             "mainClass": "edu.acceso.testjdbc.Main",
