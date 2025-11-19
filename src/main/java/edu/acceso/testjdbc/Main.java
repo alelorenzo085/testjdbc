@@ -1,5 +1,6 @@
 package edu.acceso.testjdbc;
 
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
@@ -21,16 +22,17 @@ public class Main {
         final String dbProtocol = "jdbc:sqlite:";
 
         // Las bases de datos de SQLite son archivos.
-        //Path dbPath = Path.of(System.getProperty("java.io.tmpdir"), "test.db");
-        //String dbUrl = String.format("%s%s", dbProtocol, dbPath);
+        Path dbPath = Path.of(System.getProperty("java.io.tmpdir"), "test.db");
+        String dbUrl = String.format("%s%s", dbProtocol, dbPath);
 
         // Alternativa particular de SQLite: base de datos en memoria.
-        String dbUrl = String.format("%s", dbProtocol, ":memory:");
+        //String dbUrl = String.format("%s", dbProtocol, ":memory:");
 
         Centro[] centros = new Centro[] {
             new Centro(11004866, "IES Castillo de Luna", Titularidad.PUBLICA),
             new Centro(11700602, "IES Pintor Juan Lara", Titularidad.PUBLICA),
-            new Centro(21002100, "IES Pade José Miravent", Titularidad.PUBLICA)
+            new Centro(11004039, "IES Salmedina", Titularidad.PUBLICA),
+            new Centro(21002100, "IES Padre José Miravent", Titularidad.PRIVADA)
         };
 
         try (Connection conn = DriverManager.getConnection(dbUrl)) {
