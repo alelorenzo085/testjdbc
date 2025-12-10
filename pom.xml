@@ -113,9 +113,9 @@
 
         <!-- Mis utilidades para SQL -->
         <dependency>
-            <groupId>com.github.sio2sio2</groupId>
+            <groupId>com.github.alelorenzo085</groupId>
             <artifactId>sqlutils</artifactId>
-            <version>2.2.0</version>
+            <version>1.0</version>
         </dependency>
     </dependencies>
 

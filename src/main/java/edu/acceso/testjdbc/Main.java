@@ -5,12 +5,6 @@ import java.time.LocalDate;
 
 import javax.sql.DataSource;
 
-import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import edu.acceso.sqlutils.errors.DataAccessException;
-import edu.acceso.sqlutils.tx.TransactionManager;
 import edu.acceso.testjdbc.backend.Conexion;
 import edu.acceso.testjdbc.backend.dao.CentroDao;
 import edu.acceso.testjdbc.backend.dao.EstudianteDao;
@@ -18,84 +12,80 @@ import edu.acceso.testjdbc.domain.Centro;
 import edu.acceso.testjdbc.domain.Estudiante;
 import edu.acceso.testjdbc.domain.Titularidad;
 
+import edu.acceso.sqlutils.errors.DataAccessException;
+
 public class Main {
 
-    private static void probarTransaccion(Centro centro) throws DataAccessException {
-        DataSource ds = Conexion.getDataSource();
+    public static void hacerTransaccion() throws DataAccessException {
+        DataSource ds = Conexion.get();
 
-        try {
-            TransactionManager.transactionSQL(ds, conn -> {
-                CentroDao cDao = new CentroDao(conn);
-                EstudianteDao eDao = new EstudianteDao(conn);
-
-                boolean borrado = eDao.remove(2);
-                if(borrado) System.out.println("El estudiante con ID=2 debería haberse borrado.");
-                cDao.insert(centro);  // Falla y malogra la operación de borrado anterior.
-            });
-        } catch(DataAccessException e) {
-            System.err.println("Transacción fallida: " + e.getMessage());
-        }
-
-        EstudianteDao estudianteDao = new EstudianteDao(ds);
-
-        System.out.println("--- Lista de estudiantes ---");
-        for(Estudiante estudiante: estudianteDao.get()) {
-            System.out.printf("Estudiante %d: %s.\n", estudiante.getId(), estudiante);
-        }
-        System.out.println("--- *** ---");
+        Conexion.transaction(ds, (cDao,eDao) -> {
+            eDao.remove(1);
+            cDao.insert(new Centro(11004866, "xxxx", Titularidad.PUBLICA));
+        });
     }
-    
-    public static void main(String[] args) {
-        Logger hikariLogger = (Logger) LoggerFactory.getLogger("com.zaxxer.hikari");
-        hikariLogger.setLevel(Level.WARN);
 
+    public static void main(String[] args) {
         String url = "file::memory:?cache=shared";
 
+        DataSource ds = null;
         try {
-            DataSource ds = Conexion.create(url, "resources:/centros.sql");
+            ds = Conexion.create(url, "resources:/centros.sql");
             System.out.println("Hemos logrado conectar a la base de datos");
+        } catch (IOException e){
+            System.err.println("Es imposible acceder a la base de datos");
+        } catch (DataAccessException e) {
+            System.err.println("Error al iniciar la base de datos. "+ e.getMessage());
+        }
 
-            Centro[] centros = new Centro[] {
-                new Centro(11004866, "IES Castillo de Luna", Titularidad.PUBLICA),
-                new Centro(11700602, "IES Pintor Juan Lara", Titularidad.PUBLICA),
-                new Centro(21002100, "IES Padre José Miravent", Titularidad.PUBLICA)
-            };
+        Centro[] centros = new Centro[] {
+            new Centro(11004866, "IES Castillo de Luna", Titularidad.PUBLICA),
+            new Centro(11700602, "IES Pintor Juan Lara", Titularidad.PUBLICA),
+            new Centro(11004039, "IES SIDON" , Titularidad.PUBLICA),
+            new Centro(21002100, "IES Pade José Miravent", Titularidad.PUBLICA)
+        };
 
-            
+        try {
             CentroDao centroDao = new CentroDao(ds);
             EstudianteDao estudianteDao = new EstudianteDao(ds);
 
-            // Agrego los centros a la base de datos.
+            // Agrego los centros a la base de datos
             centroDao.insert(centros);
 
-            // Compruebo centros.
-            System.out.println("--- Lista de centros ---");
+            System.out.println("--- LISTA DE CENTROS ---");
             centroDao.get().forEach(System.out::println);
-            System.out.println("--- *** ---");
+            System.out.println("---- ************** ----");
 
-            System.out.println("--- *** ---");
+            System.out.println("---- **** ------");
             System.out.println(centroDao.get(11004866));
-            System.out.println("--- *** ---");
+            System.out.println("---- **** ------");
 
             Estudiante[] estudiantes = new Estudiante[] {
                 new Estudiante(null, "Perico de los Palotes", LocalDate.of(2000, 01, 01), centros[0]),
-                new Estudiante(null, "Segismundo Vergara", LocalDate.of(2002, 02, 02), null)
+                new Estudiante(null, "Segismundo", LocalDate.of(2002, 02, 02), null)
             };
 
             estudianteDao.insert(estudiantes);
 
-            System.out.println("--- Lista de estudiantes ---");
+            System.out.println("--- LISTA DE ESTUDIANTES ---");
             for(Estudiante estudiante: estudianteDao.get()) {
                 System.out.printf("Estudiante %d: %s.\n", estudiante.getId(), estudiante);
             }
-            System.out.println("--- *** ---");
+            estudianteDao.get().forEach(System.out::println);
+            System.out.println("---- ************** ----");
 
-            probarTransaccion(centros[1]);
+            try {
+                hacerTransaccion();
+            } catch (DataAccessException e) {
+                System.err.println("Error en la transacción: " + e.getMessage());
+            }
 
-        } catch(IOException e) {
-            System.err.println("Es imposible acceder a la base de datos");
-        } catch(DataAccessException e) {
-            System.err.println("Error de conexión: " + e.getMessage());
+            System.out.println("--- Estudiante que hay en la base de daatos ---");
+            estudianteDao.get().forEach(System.out::println);
+        }
+        catch(DataAccessException err) {
+            err.printStackTrace();
+            System.err.println("Error de conexión. " + err.getMessage());
         }
     }
 }

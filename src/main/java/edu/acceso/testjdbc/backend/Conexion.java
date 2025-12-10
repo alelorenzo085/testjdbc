@@ -14,6 +14,9 @@ import javax.sql.DataSource;
 import edu.acceso.sqlutils.ConnectionPool;
 import edu.acceso.sqlutils.SqlUtils;
 import edu.acceso.sqlutils.errors.DataAccessException;
+import edu.acceso.sqlutils.tx.TransactionManager;
+import edu.acceso.testjdbc.backend.dao.CentroDao;
+import edu.acceso.testjdbc.backend.dao.EstudianteDao;
 
 public class Conexion {
 
@@ -21,6 +24,11 @@ public class Conexion {
 
     private static final String sgbd = "jdbc:sqlite:";
     private static final String tabla = "Centro";
+
+    @FunctionalInterface
+    public static interface DaoInterface {
+        public void run(CentroDao cDao, EstudianteDao eDao) throws DataAccessException;
+    }
 
     public static DataSource create(String path) throws IOException {
         try {
@@ -74,8 +82,17 @@ public class Conexion {
         }
     }
 
-    public static DataSource getDataSource() {
+    public static DataSource get() {
         if(ds == null) throw new IllegalStateException("La conexión no se ha inicializado");
         return ds;
+    }
+
+    public static void transaction(DataSource ds, DaoInterface operations) throws DataAccessException {
+        TransactionManager.transactionSQL(ds, conn -> {
+            CentroDao cDao = new CentroDao(conn);
+            EstudianteDao eDao = new EstudianteDao(conn);
+
+            operations.run(cDao, eDao);
+        });
     }
 }
