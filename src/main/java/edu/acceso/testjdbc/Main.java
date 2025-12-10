@@ -1,57 +1,101 @@
 package edu.acceso.testjdbc;
 
-import java.nio.file.Path;
-import java.sql.Connection;
+import java.io.IOException;
+import java.time.LocalDate;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-import com.zaxxer.hikari.HikariPoolMXBean;
+import javax.sql.DataSource;
+
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import edu.acceso.sqlutils.errors.DataAccessException;
+import edu.acceso.sqlutils.tx.TransactionManager;
+import edu.acceso.testjdbc.backend.Conexion;
+import edu.acceso.testjdbc.backend.dao.CentroDao;
+import edu.acceso.testjdbc.backend.dao.EstudianteDao;
+import edu.acceso.testjdbc.domain.Centro;
+import edu.acceso.testjdbc.domain.Estudiante;
+import edu.acceso.testjdbc.domain.Titularidad;
 
 public class Main {
 
-    public static void main(String[] args) throws Exception {
-        
-        final
-       String dbProtocol = "jdbc:sqlite:";
-        Path dbPath = Path.of(System.getProperty("java.io.tmpdir"), "test.db");
-        String dbUrl = String.format("%s%s", dbProtocol, dbPath);
+    private static void probarTransaccion(Centro centro) throws DataAccessException {
+        DataSource ds = Conexion.getDataSource();
 
-        // Configuramos el acceso.
-        HikariConfig hconfig = new HikariConfig();
-        hconfig.setJdbcUrl(dbUrl);
-        // En SQLite no hay credenciales de acceso.
-        hconfig.setUsername(null);
-        hconfig.setPassword(null);
-        // Máximo y mínimo de conexiones
-        hconfig.setMaximumPoolSize(10);  // Nunca se abrirán más de diez conexiones.
-        hconfig.setMinimumIdle(1);       // Al menos habrá una conexión.
+        try {
+            TransactionManager.transactionSQL(ds, conn -> {
+                CentroDao cDao = new CentroDao(conn);
+                EstudianteDao eDao = new EstudianteDao(conn);
 
-        HikariDataSource ds = new HikariDataSource(hconfig);
-        HikariPoolMXBean stats = ds.getHikariPoolMXBean(); // Para consultar estadísticas.
-
-        // Como el mínimo es una conexión, ya hay una conexión creada.
-        System.out.println(String.format("Conexiones activas/totales: %d/%d", stats.getActiveConnections(), stats.getTotalConnections()));  // 0/1
-
-        try(Connection conn1 = ds.getConnection()) {
-        // ...
-        System.out.println(String.format("activas/totales: %d/%d", stats.getActiveConnections(), stats.getTotalConnections()));  // 1/1
+                boolean borrado = eDao.remove(2);
+                if(borrado) System.out.println("El estudiante con ID=2 debería haberse borrado.");
+                cDao.insert(centro);  // Falla y malogra la operación de borrado anterior.
+            });
+        } catch(DataAccessException e) {
+            System.err.println("Transacción fallida: " + e.getMessage());
         }
 
-        System.out.println(String.format("activas/totales: %d/%d", stats.getActiveConnections(), stats.getTotalConnections()));  // 0/1
+        EstudianteDao estudianteDao = new EstudianteDao(ds);
 
-        try(Connection conn1 = ds.getConnection()) {
-        // ...
-        System.out.println(String.format("activas/totales: %d/%d", stats.getActiveConnections(), stats.getTotalConnections()));  // 1/1
-        try(Connection conn2 = ds.getConnection()) {  // Crea una conexión nueva.
-            // ...
-            System.out.println(String.format("activas/totales: %d/%d", stats.getActiveConnections(), stats.getTotalConnections()));  // 2/2
+        System.out.println("--- Lista de estudiantes ---");
+        for(Estudiante estudiante: estudianteDao.get()) {
+            System.out.printf("Estudiante %d: %s.\n", estudiante.getId(), estudiante);
         }
+        System.out.println("--- *** ---");
+    }
+    
+    public static void main(String[] args) {
+        Logger hikariLogger = (Logger) LoggerFactory.getLogger("com.zaxxer.hikari");
+        hikariLogger.setLevel(Level.WARN);
 
-        System.out.println(String.format("activas/totales: %d/%d", stats.getActiveConnections(), stats.getTotalConnections()));  // 1/2
-        }
+        String url = "file::memory:?cache=shared";
 
-        System.out.println(String.format("activas/totales: %d/%d", stats.getActiveConnections(), stats.getTotalConnections()));  // 0/2
+        try {
+            DataSource ds = Conexion.create(url, "resources:/centros.sql");
+            System.out.println("Hemos logrado conectar a la base de datos");
 
-        ds.close();  // Se liberan recursos.
+            Centro[] centros = new Centro[] {
+                new Centro(11004866, "IES Castillo de Luna", Titularidad.PUBLICA),
+                new Centro(11700602, "IES Pintor Juan Lara", Titularidad.PUBLICA),
+                new Centro(21002100, "IES Padre José Miravent", Titularidad.PUBLICA)
+            };
+
+            
+            CentroDao centroDao = new CentroDao(ds);
+            EstudianteDao estudianteDao = new EstudianteDao(ds);
+
+            // Agrego los centros a la base de datos.
+            centroDao.insert(centros);
+
+            // Compruebo centros.
+            System.out.println("--- Lista de centros ---");
+            centroDao.get().forEach(System.out::println);
+            System.out.println("--- *** ---");
+
+            System.out.println("--- *** ---");
+            System.out.println(centroDao.get(11004866));
+            System.out.println("--- *** ---");
+
+            Estudiante[] estudiantes = new Estudiante[] {
+                new Estudiante(null, "Perico de los Palotes", LocalDate.of(2000, 01, 01), centros[0]),
+                new Estudiante(null, "Segismundo Vergara", LocalDate.of(2002, 02, 02), null)
+            };
+
+            estudianteDao.insert(estudiantes);
+
+            System.out.println("--- Lista de estudiantes ---");
+            for(Estudiante estudiante: estudianteDao.get()) {
+                System.out.printf("Estudiante %d: %s.\n", estudiante.getId(), estudiante);
             }
+            System.out.println("--- *** ---");
+
+            probarTransaccion(centros[1]);
+
+        } catch(IOException e) {
+            System.err.println("Es imposible acceder a la base de datos");
+        } catch(DataAccessException e) {
+            System.err.println("Error de conexión: " + e.getMessage());
         }
+    }
+}
