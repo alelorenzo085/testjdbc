@@ -6,7 +6,7 @@ on:
 
 env:
   PUBLISH_DIR: target/reports/apidocs  # Ruta predeterminada
-  DESTINATION_DIR: .                   # Raíz de gh-pages
+  DESTINATION_DIR: .      # Raíz de gh-pages
 
 jobs:
   build:
@@ -23,8 +23,11 @@ jobs:
         distribution: 'temurin'
         cache: 'maven'
 
+    - name: Generar JPA Metamodel
+      run: mvn clean compile -DgenerateJpaMetamodel=true
+
     - name: Generar Javadoc
-      run: mvn javadoc:javadoc
+      run: mvn javadoc:javadoc -DgenerateJpaMetamodel=true
 
     - name: Mover la documentación a gh-pages
       uses: peaceiris/actions-gh-pages@v3
